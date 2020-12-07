@@ -1,5 +1,5 @@
 
-package com.laisen.autojob.modules.cloud189.util;
+package com.laisen.autojob.core.utils;
 
 import org.apache.commons.codec.binary.Base64;
 

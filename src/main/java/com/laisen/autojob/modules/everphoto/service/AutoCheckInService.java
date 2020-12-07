@@ -75,7 +75,7 @@ public class AutoCheckInService {
         detail.add("明日可得:" + (result.getTomorrow_reward() / 1024 / 1024) + "MB");
         String detail1 = detail.stream().collect(Collectors.joining("；"));
         l.setDetail(detail1);
-        l.setType(Constants.LOG_TYPE_EVERPHOTO);
+        l.setType(Constants.MODULE_EVERPHOTO);
         eventLogRepository.save(l);
         LogUtils.info(log, Constants.LOG_MODULES_EVERPHOTO, Constants.LOG_OPERATE_CHECKIN, "{},{}", everPhotoAccount.getAccount(), detail1);
 

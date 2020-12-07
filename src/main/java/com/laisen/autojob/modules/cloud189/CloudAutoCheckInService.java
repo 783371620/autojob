@@ -1,20 +1,28 @@
 
-package com.laisen.autojob.modules.cloud189.service;
+package com.laisen.autojob.modules.cloud189;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.laisen.autojob.core.constants.Constants;
+import com.laisen.autojob.core.entity.Account;
 import com.laisen.autojob.core.entity.EventLog;
+import com.laisen.autojob.core.repository.AccountRepository;
 import com.laisen.autojob.core.repository.EventLogRepository;
 import com.laisen.autojob.core.service.MessageService;
+import com.laisen.autojob.core.utils.AESUtil;
 import com.laisen.autojob.core.utils.LogUtils;
-import com.laisen.autojob.modules.cloud189.entity.CloudAccount;
-import com.laisen.autojob.modules.cloud189.repository.CloudAccountRepository;
-import com.laisen.autojob.modules.cloud189.util.AESUtil;
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
+import okhttp3.Cookie;
+import okhttp3.CookieJar;
+import okhttp3.FormBody;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -39,28 +47,28 @@ import java.util.regex.Pattern;
 @Service
 @Slf4j
 public class CloudAutoCheckInService {
-    private static String loginPageUrl = "https://cloud.189.cn/udb/udb_login.jsp?pageId=1&redirectURL=/main.action";
-    private static Pattern returnUrlPattern = Pattern.compile("returnUrl = '(.*)'");
-    private static Pattern paramIdPattern = Pattern.compile("paramId = \"(.*)\"");
-    private static Pattern ltPattern = Pattern.compile("lt = \"(.*)\"");
-    private String returnUrl = "";
-    private String paramId = "";
-    private String lt = "";
-    private static String loginUrl = "https://open.e.189.cn/api/logbox/oauth2/loginSubmit.do";
-    private final List<Cookie> cookieStore = new ArrayList<>();
+    private static String       loginPageUrl     = "https://cloud.189.cn/udb/udb_login.jsp?pageId=1&redirectURL=/main.action";
+    private static Pattern      returnUrlPattern = Pattern.compile("returnUrl = '(.*)'");
+    private static Pattern      paramIdPattern   = Pattern.compile("paramId = \"(.*)\"");
+    private static Pattern      ltPattern        = Pattern.compile("lt = \"(.*)\"");
+    private        String       returnUrl        = "";
+    private        String       paramId          = "";
+    private        String       lt               = "";
+    private static String       loginUrl         = "https://open.e.189.cn/api/logbox/oauth2/loginSubmit.do";
+    private final  List<Cookie> cookieStore      = new ArrayList<>();
 
-    String url = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN&activityId=ACT_SIGNIN";
+    String url  = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN&activityId=ACT_SIGNIN";
     String url2 = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN_PHOTOS&activityId=ACT_SIGNIN";
-    private OkHttpClient client;
-    private List<String> headers = new ArrayList<>();
+    private OkHttpClient       client;
+    private List<String>       headers = new ArrayList<>();
     @Autowired
-    private CloudAccountRepository cloudAccountRepository;
+    private AccountRepository  accountRepository;
     @Autowired
     private EventLogRepository eventLogRepository;
     @Autowired
-    private MessageService messageService;
+    private MessageService     messageService;
 
-    public void autoCheckin(String userId) throws Exception {
+    public void autoCheckin(Long accountId) throws Exception {
         client = new OkHttpClient.Builder().cookieJar(new CookieJar() {
             @Override
             public void saveFromResponse(HttpUrl httpUrl, List<Cookie> list) {
@@ -72,30 +80,38 @@ public class CloudAutoCheckInService {
                 return cookieStore;
             }
         }).build();
+        Account account = accountRepository.findById(accountId).orElse(null);
+        if (Objects.isNull(account)) {
+            throw new RuntimeException("天翼云盘用户未配置");
+        }
+        if (!Objects.equals(account.getType(), Constants.MODULE_CLOUD189)) {
+            throw new RuntimeException("天翼云盘账号配置不正确");
+        }
+
+        String userId = account.getUserId();
+        String accountName = account.getAccount();
+
         EventLog eventLog = new EventLog();
         eventLog.setUserId(userId);
-        eventLog.setType(Constants.LOG_TYPE_CLOUD189);
-        CloudAccount account = cloudAccountRepository.findByUserId(userId);
-        if (Objects.isNull(account)) {
-            throw new RuntimeException("用户未配置");
-        }
+        eventLog.setAccountId(account.getId());
+        eventLog.setType(account.getType());
+
         String loginResult = login(account.getAccount(), AESUtil.decrypt(account.getPassword()));
-        LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOGIN, loginResult);
+        LogUtils.info(log, userId, accountName, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOGIN, loginResult);
 
         String checkInResult = checkIn();
-        LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_CHECKIN, checkInResult);
+        LogUtils.info(log, userId, accountName, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_CHECKIN, checkInResult);
 
         String lottery = lottery(url);
-        LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, lottery);
+        LogUtils.info(log, userId, accountName, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, lottery);
 
         String lottery1 = lottery(url2);
-        LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, lottery1);
+        LogUtils.info(log, userId, accountName, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, lottery1);
 
         String detail = checkInResult + ";" + lottery + ";" + lottery1;
         eventLog.setDetail(detail);
         eventLogRepository.save(eventLog);
-        //log.info("天翼网盘签到:{}", detail);
-        LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, detail);
+        LogUtils.info(log, userId, accountName, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, detail);
 
         messageService.sendMessage(userId, "天翼网盘签到", detail);
 
@@ -166,8 +182,8 @@ public class CloudAutoCheckInService {
                     Request request2 = new Request.Builder()
                             .url(toUrl).build();
                     Response response2 = client.newCall(request2).execute();
-//                headers.addAll(response2.headers("set-cookie"));
-//                String string = response2.body().string();
+                    //                headers.addAll(response2.headers("set-cookie"));
+                    //                String string = response2.body().string();
                     return jsonObject.getString("msg");
                 } else {
                     throw new RuntimeException("登录失败");
@@ -235,7 +251,8 @@ public class CloudAutoCheckInService {
             Request request = new Request.Builder()
                     .url(surl)
                     .header("User-Agent",
-                            "Mozilla/5.0 (Linux; Android 5.1.1; SM-G930K Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0"
+                            "Mozilla/5.0 (Linux; Android 5.1.1; SM-G930K Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    + "Version/4.0"
                                     + " Chrome/74.0.3729.136 Mobile Safari/537.36 Ecloud/8.6.3 Android/22 clientId/355325117317828 "
                                     + "clientModel/SM-G930K imsi/460071114317824 clientChannelId/qq proVersion/1.0.6")
                     .header("Referer", "https://m.cloud.189.cn/zhuanti/2016/sign/index.jsp?albumBackupOpened=1")
@@ -262,7 +279,8 @@ public class CloudAutoCheckInService {
             Request request = new Request.Builder()
                     .url(url)
                     .header("User-Agent",
-                            "Mozilla/5.0 (Linux; Android 5.1.1; SM-G930K Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0"
+                            "Mozilla/5.0 (Linux; Android 5.1.1; SM-G930K Build/NRD90M; wv) AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    + "Version/4.0"
                                     + " Chrome/74.0.3729.136 Mobile Safari/537.36 Ecloud/8.6.3 Android/22 clientId/355325117317828 "
                                     + "clientModel/SM-G930K imsi/460071114317824 clientChannelId/qq proVersion/1.0.6")
                     .header("Referer", "https://m.cloud.189.cn/zhuanti/2016/sign/index.jsp?albumBackupOpened=1")

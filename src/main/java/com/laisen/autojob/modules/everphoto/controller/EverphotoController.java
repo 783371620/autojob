@@ -70,7 +70,7 @@ public class EverphotoController extends BaseController {
 
             everPhotoAccountRepository.save(everPhotoAccount);
 
-            QuartzBean quartzBean = quartzBeanRepository.findByUserId(userId);
+            QuartzBean quartzBean = quartzBeanRepository.findByAccountId(1L);
             if (Objects.isNull(quartzBean)) {
                 quartzBean = new QuartzBean();
             }
@@ -100,7 +100,7 @@ public class EverphotoController extends BaseController {
     @ResponseBody
     public String deleteJob(@RequestBody EverPhotoJobDTO dto) {
         try {
-            QuartzBean quartzBean = quartzBeanRepository.findByUserId(dto.getUserId());
+            QuartzBean quartzBean = quartzBeanRepository.findByAccountId(1L);
             if (!Objects.isNull(quartzBean)) {
                 QuartzUtils.deleteScheduleJob(scheduler, quartzBean.getJobName());
                 quartzBeanRepository.delete(quartzBean);
@@ -140,7 +140,7 @@ public class EverphotoController extends BaseController {
         EverPhotoAccount everPhotoAccount = everPhotoAccountRepository.findByUserId(dto.getUserId());
         EventLog el = new EventLog();
         el.setUserId(dto.getUserId());
-        el.setType(Constants.LOG_TYPE_EVERPHOTO);
+        el.setType(Constants.MODULE_EVERPHOTO);
         Example<EventLog> ex = Example.of(el);
         PageRequest page = PageRequest.of(0, 20, Sort.by(Direction.DESC, "gmtCreate"));
         List<EventLog> logs = eventLogRepository.findAll(ex, page).toList();
