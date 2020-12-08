@@ -2,6 +2,7 @@ package com.laisen.autojob.modules.cloud189.controller;
 
 import com.laisen.autojob.modules.cloud189.entity.CloudAccount;
 import com.laisen.autojob.modules.cloud189.repository.CloudAccountRepository;
+import com.laisen.autojob.modules.cloud189.service.CloudAutoCheckInService;
 import com.laisen.autojob.modules.cloud189.util.AESUtil;
 import com.laisen.autojob.core.constants.Constants;
 import com.laisen.autojob.core.controller.BaseController;
@@ -39,7 +40,9 @@ public class Cloud189Controller extends BaseController {
     @Autowired
     private CloudAccountRepository cloudAccountRepository;
     @Autowired
-    private EventLogRepository     eventLogRepository;
+    private EventLogRepository      eventLogRepository;
+    @Autowired
+    private CloudAutoCheckInService cloudAutoCheckInService;
 
     @PostMapping("/create")
     @ResponseBody
@@ -146,4 +149,11 @@ public class Cloud189Controller extends BaseController {
 
         return logs;
     }
+    @PostMapping("/login")
+    @ResponseBody
+    public String autoCheckin(@RequestBody EverPhotoJobDTO dto) throws Exception {
+         cloudAutoCheckInService.autoCheckin("1");
+        return "";
+    }
+
 }
