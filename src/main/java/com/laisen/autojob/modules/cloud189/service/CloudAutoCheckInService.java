@@ -104,7 +104,7 @@ public class CloudAutoCheckInService {
             detail = loginResult;
         }
 
-        eventLog.setDetail(detail+",请手动登录一次");
+        eventLog.setDetail(detail);
         eventLogRepository.save(eventLog);
         //log.info("天翼网盘签到:{}", detail);
         LogUtils.info(log, userId, Constants.LOG_MODULES_CLOUD189, Constants.LOG_OPERATE_LOTTERY, detail);
