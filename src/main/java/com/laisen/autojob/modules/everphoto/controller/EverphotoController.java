@@ -124,7 +124,7 @@ public class EverphotoController extends BaseController {
         Map<String, String> result = new HashMap<>();
         if (!Objects.isNull(everPhotoAccount)) {
             result.put("account", everPhotoAccount.getAccount());
-            result.put("password", "******");
+            result.put("password", "");
             result.put("time", everPhotoAccount.getTime());
         } else {
             result.put("account", "");
