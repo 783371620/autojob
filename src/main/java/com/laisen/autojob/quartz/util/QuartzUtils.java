@@ -1,16 +1,10 @@
 package com.laisen.autojob.quartz.util;
 
 import com.laisen.autojob.quartz.entity.QuartzBean;
-import org.quartz.CronScheduleBuilder;
-import org.quartz.CronTrigger;
-import org.quartz.Job;
-import org.quartz.JobBuilder;
-import org.quartz.JobDetail;
-import org.quartz.JobKey;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.TriggerBuilder;
-import org.quartz.TriggerKey;
+import org.quartz.*;
+import org.quartz.impl.matchers.GroupMatcher;
+
+import java.util.Set;
 
 public class QuartzUtils {
 
@@ -49,6 +43,15 @@ public class QuartzUtils {
         } catch (SchedulerException e) {
             System.out.println("暂停定时任务出错：" + e.getMessage());
         }
+    }
+
+    public static Set<JobKey> listAll(Scheduler scheduler) {
+        try {
+            return scheduler.getJobKeys(GroupMatcher.anyGroup());
+        } catch (SchedulerException e) {
+            System.out.println("查询定时任务出错：" + e.getMessage());
+        }
+        return null;
     }
 
     /**

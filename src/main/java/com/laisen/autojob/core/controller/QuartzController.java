@@ -41,6 +41,17 @@ public class QuartzController {
         return "暂停成功";
     }
 
+    @RequestMapping("/list")
+    @ResponseBody
+    public String list() {
+        try {
+            QuartzUtils.listAll(scheduler);
+        } catch (Exception e) {
+            return "暂停失败";
+        }
+        return "暂停成功";
+    }
+
     @RequestMapping("/runOnce")
     @ResponseBody
     public String runOnce() {

@@ -8,11 +8,7 @@ import com.laisen.autojob.core.service.dto.Message;
 import com.laisen.autojob.core.service.dto.ValueDetail;
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import okhttp3.*;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -37,15 +33,16 @@ public class MessageService {
         Request request = new Request.Builder()
                 .url(url)
                 .build();
+        AtomicReference<Response> response = new AtomicReference<>();
         return Try.of(() -> {
-            Response response = client.newCall(request).execute();
-            String responseText = response.body().string();
+            response.set(client.newCall(request).execute());
+            String responseText = response.get().body().string();
             ObjectMapper mapper = new ObjectMapper();
             Map map = mapper.readValue(responseText, Map.class);
             String openid = map.get("access_token").toString();
 
             return openid;
-        }).getOrElse("");
+        }).andFinally(() -> response.get().close()).getOrElse("");
     }
 
     public void sendMessage(String userId, String type, String detail) {

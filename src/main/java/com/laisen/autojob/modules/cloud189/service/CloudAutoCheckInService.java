@@ -13,14 +13,7 @@ import com.laisen.autojob.modules.cloud189.repository.CloudAccountRepository;
 import com.laisen.autojob.modules.cloud189.util.AESUtil;
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Cookie;
-import okhttp3.CookieJar;
-import okhttp3.FormBody;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import okhttp3.*;
 import org.apache.commons.codec.binary.Base64;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -36,6 +29,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,26 +40,26 @@ import java.util.regex.Pattern;
 @Service
 @Slf4j
 public class CloudAutoCheckInService {
-    private static String       loginPageUrl     = "https://cloud.189.cn/udb/udb_login.jsp?pageId=1&redirectURL=/main.action";
-    private static Pattern      returnUrlPattern = Pattern.compile("returnUrl = '(.*)'");
-    private static Pattern      paramIdPattern   = Pattern.compile("paramId = \"(.*)\"");
-    private static Pattern      ltPattern        = Pattern.compile("lt = \"(.*)\"");
-    private        String       returnUrl        = "";
-    private        String       paramId          = "";
-    private        String       lt               = "";
-    private static String       loginUrl         = "https://open.e.189.cn/api/logbox/oauth2/loginSubmit.do";
-    private final  List<Cookie> cookieStore      = new ArrayList<>();
+    private static String loginPageUrl = "https://cloud.189.cn/udb/udb_login.jsp?pageId=1&redirectURL=/main.action";
+    private static Pattern returnUrlPattern = Pattern.compile("returnUrl = '(.*)'");
+    private static Pattern paramIdPattern = Pattern.compile("paramId = \"(.*)\"");
+    private static Pattern ltPattern = Pattern.compile("lt = \"(.*)\"");
+    private String returnUrl = "";
+    private String paramId = "";
+    private String lt = "";
+    private static String loginUrl = "https://open.e.189.cn/api/logbox/oauth2/loginSubmit.do";
+    private final List<Cookie> cookieStore = new ArrayList<>();
 
-    String url  = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN&activityId=ACT_SIGNIN";
+    String url = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN&activityId=ACT_SIGNIN";
     String url2 = "https://m.cloud.189.cn/v2/drawPrizeMarketDetails.action?taskId=TASK_SIGNIN_PHOTOS&activityId=ACT_SIGNIN";
-    private OkHttpClient           client;
-    private List<String>           headers = new ArrayList<>();
+    private OkHttpClient client;
+    private List<String> headers = new ArrayList<>();
     @Autowired
     private CloudAccountRepository cloudAccountRepository;
     @Autowired
-    private EventLogRepository     eventLogRepository;
+    private EventLogRepository eventLogRepository;
     @Autowired
-    private MessageService         messageService;
+    private MessageService messageService;
 
     public void autoCheckin(String userId) throws Exception {
         client = new OkHttpClient.Builder().cookieJar(new CookieJar() {
@@ -114,6 +108,7 @@ public class CloudAutoCheckInService {
     }
 
     private String needcaptcha(String username) {
+        AtomicReference<Response> response = new AtomicReference<>();
         return Try.of(() -> {
             String needcaptcha_url = "https://open.e.189.cn/api/logbox/oauth2/needcaptcha.do";
 
@@ -128,9 +123,9 @@ public class CloudAutoCheckInService {
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:74.0) Gecko/20100101 Firefox/76.0")
                     .header("Referer", "https://open.e.189.cn/")
                     .build();
-            Response response = client.newCall(request).execute();
-            return response.body().string();
-        }).getOrElse("1");
+            response.set(client.newCall(request).execute());
+            return response.get().body().string();
+        }).andFinally(() -> response.get().close()).getOrElse("1");
     }
 
     private String login(String username, String password) throws Exception {
@@ -186,7 +181,9 @@ public class CloudAutoCheckInService {
                     .header("Referer", "https://open.e.189.cn/")
                     .header("lt", lt)
                     .build();
-            try (Response response = client.newCall(request).execute()) {
+            Response response = null;
+            try {
+                response = client.newCall(request).execute();
                 String s = response.body().string();
                 //{
                 //	"result":0,
@@ -203,11 +200,18 @@ public class CloudAutoCheckInService {
                     Request request2 = new Request.Builder()
                             .url(toUrl).build();
                     Response response2 = client.newCall(request2).execute();
+                    if (response2 != null) {
+                        response2.close();
+                    }
                     //                headers.addAll(response2.headers("set-cookie"));
                     //                String string = response2.body().string();
                     return jsonObject.getString("msg");
                 } else {
                     throw new RuntimeException("登录失败");
+                }
+            } finally {
+                if (response != null) {
+                    response.close();
                 }
             }
         }).getOrElse("登录失败");
@@ -264,6 +268,7 @@ public class CloudAutoCheckInService {
     }
 
     private String checkIn() {
+        AtomicReference<Response> response2 = new AtomicReference<>();
         return Try.of(() -> {
             String result = "";
             String surl = "https://api.cloud.189.cn/mkt/userSign.action?rand=" + System.currentTimeMillis()
@@ -280,8 +285,8 @@ public class CloudAutoCheckInService {
                     .header("Host", "m.cloud.189.cn")
                     .header("Accept-Encoding", "gzip, deflate")
                     .build();
-            Response response2 = client.newCall(request).execute();
-            String signInResult = response2.body().string();
+            response2.set(client.newCall(request).execute());
+            String signInResult = response2.get().body().string();
             JSONObject jsonObject = JSON.parseObject(signInResult);
             if (jsonObject.getString("isSign").equals("false")) {
                 result = "签到获得" + jsonObject.getString("netdiskBonus") + "MB";
@@ -291,10 +296,12 @@ public class CloudAutoCheckInService {
                 log.info(result);
             }
             return result;
-        }).getOrElse("签到失败");
+        }).andFinally(() -> response2.get().close()).getOrElse("签到失败");
     }
 
     private String lottery(String url) {
+        AtomicReference<Response> response = new AtomicReference<>();
+
         return Try.of(() -> {
             String result = "";
             Request request = new Request.Builder()
@@ -309,8 +316,8 @@ public class CloudAutoCheckInService {
                     .header("Accept-Encoding", "gzip, deflate")
                     .build();
 
-            Response response = client.newCall(request).execute();
-            String responseText = response.body().string();
+            response.set(client.newCall(request).execute());
+            String responseText = response.get().body().string();
             JSONObject jsonObject = JSON.parseObject(responseText);
             if (jsonObject.containsKey("errorCode")) {
                 if (jsonObject.getString("errorCode").equals("User_Not_Chance")) {
@@ -322,7 +329,7 @@ public class CloudAutoCheckInService {
                 result = "获得" + jsonObject.getString("description") + "MB";
             }
             return result;
-        }).getOrElse("抽奖失败");
+        }).andFinally(() -> response.get().close()).getOrElse("抽奖失败");
 
     }
 }
