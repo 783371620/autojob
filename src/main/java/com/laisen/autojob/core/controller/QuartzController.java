@@ -2,11 +2,16 @@ package com.laisen.autojob.core.controller;
 
 import com.laisen.autojob.quartz.entity.QuartzBean;
 import com.laisen.autojob.quartz.util.QuartzUtils;
+import org.quartz.JobKey;
 import org.quartz.Scheduler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/quartz/")
@@ -43,13 +48,14 @@ public class QuartzController {
 
     @RequestMapping("/list")
     @ResponseBody
-    public String list() {
+    public Object list() {
         try {
-            QuartzUtils.listAll(scheduler);
+            Set<JobKey> jobKeys = QuartzUtils.listAll(scheduler);
+            List<String> collect = jobKeys.stream().map(v -> v.getName()).collect(Collectors.toList());
+            return collect;
         } catch (Exception e) {
-            return "暂停失败";
+            return "查询失败";
         }
-        return "暂停成功";
     }
 
     @RequestMapping("/runOnce")
