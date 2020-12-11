@@ -50,7 +50,7 @@ public class AutoCheckInService {
         String login = login(everPhotoAccount.getAccount(), everPhotoAccount.getPassword());
         final JSONObject loginResult = JSON.parseObject(login);
         if (Objects.isNull(loginResult) || !loginResult.getInteger("code").equals(0) || !loginResult.containsKey("data")) {
-            throw new RuntimeException("登录失败");
+            throw new RuntimeException("登录失败," + loginResult.getString("message"));
         }
         final JSONObject loginData = loginResult.getJSONObject("data");
         if (loginData.containsKey("token")) {
