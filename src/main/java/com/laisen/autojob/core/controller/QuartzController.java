@@ -1,6 +1,7 @@
 package com.laisen.autojob.core.controller;
 
 import com.laisen.autojob.quartz.entity.QuartzBean;
+import com.laisen.autojob.quartz.repository.QuartzBeanRepository;
 import com.laisen.autojob.quartz.util.QuartzUtils;
 import org.quartz.JobKey;
 import org.quartz.Scheduler;
@@ -19,6 +20,8 @@ public class QuartzController {
     //注入任务调度
     @Autowired
     private Scheduler scheduler;
+    @Autowired
+    private QuartzBeanRepository quartzBeanRepository;
 
     @RequestMapping("/createJob")
     @ResponseBody
@@ -51,7 +54,11 @@ public class QuartzController {
     public Object list() {
         try {
             Set<JobKey> jobKeys = QuartzUtils.listAll(scheduler);
-            List<String> collect = jobKeys.stream().map(v -> v.getName()).collect(Collectors.toList());
+            List<QuartzBean> collect = jobKeys.stream().map(v -> {
+                String jobName = v.getName();
+                QuartzBean byJobName = quartzBeanRepository.findByJobName(jobName);
+                return byJobName;
+            }).collect(Collectors.toList());
             return collect;
         } catch (Exception e) {
             return "查询失败";
