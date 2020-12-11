@@ -18,11 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.util.DigestUtils;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
@@ -33,13 +29,13 @@ import java.util.Objects;
 @RequestMapping("everphoto")
 public class EverphotoController extends BaseController {
     @Autowired
-    private Scheduler                  scheduler;
+    private Scheduler scheduler;
     @Autowired
-    private QuartzBeanRepository       quartzBeanRepository;
+    private QuartzBeanRepository quartzBeanRepository;
     @Autowired
     private EverPhotoAccountRepository everPhotoAccountRepository;
     @Autowired
-    private EventLogRepository         eventLogRepository;
+    private EventLogRepository eventLogRepository;
 
     @PostMapping("/create")
     @ResponseBody
@@ -123,7 +119,7 @@ public class EverphotoController extends BaseController {
         EverPhotoAccount everPhotoAccount = everPhotoAccountRepository.findByUserId(dto.getUserId());
         Map<String, String> result = new HashMap<>();
         if (!Objects.isNull(everPhotoAccount)) {
-            result.put("account", everPhotoAccount.getAccount());
+            result.put("account", everPhotoAccount.getAccount().replace("+86", ""));
             result.put("password", "");
             result.put("time", everPhotoAccount.getTime());
         } else {

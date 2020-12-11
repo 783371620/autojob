@@ -49,8 +49,11 @@ public class AutoCheckInService {
         String token = "";
         String login = login(everPhotoAccount.getAccount(), everPhotoAccount.getPassword());
         final JSONObject loginResult = JSON.parseObject(login);
-        if (Objects.isNull(loginResult) || !loginResult.getInteger("code").equals(0) || !loginResult.containsKey("data")) {
-            throw new RuntimeException("登录失败," + loginResult.getString("message"));
+        if (Objects.isNull(loginResult)) {
+            throw new RuntimeException("登录失败");
+        }
+        if (!loginResult.getInteger("code").equals(0) || !loginResult.containsKey("data")) {
+            throw new RuntimeException("登录失败," + (loginResult.containsKey("message") ? loginResult.getString("message") : ""));
         }
         final JSONObject loginData = loginResult.getJSONObject("data");
         if (loginData.containsKey("token")) {
@@ -131,7 +134,7 @@ public class AutoCheckInService {
                 baos.write((byte) b);
             }
         } catch (Exception e) {
-            return "";
+            return new String(str);
         }
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
